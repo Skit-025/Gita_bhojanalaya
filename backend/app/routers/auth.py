@@ -103,8 +103,8 @@ def student_login(
             key="access_token",
             value=token,
             httponly=True,
-            samesite="lax",
-            secure=settings.is_cookie_secure,
+            samesite="none",
+            secure=True,
             max_age=86400,
         )
 
