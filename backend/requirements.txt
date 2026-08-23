@@ -1,0 +1,36 @@
+# ===============================================================================
+# FILE PURPOSE:
+# Python package dependency manifest for the backend service.
+# Specifies external libraries required (FastAPI, Uvicorn, SQLAlchemy, Alembic,
+# Pydantic, PyJWT, Passlib, Pytest, etc.).
+#
+# CONNECTED FILES & FOLDERS:
+# - Connected to: backend/app/ (Imports packages listed here)
+# - Connected to: backend/alembic/ (Requires Alembic dependency)
+# - Connected to: backend/tests/ (Requires Pytest dependency)
+# ===============================================================================
+
+# --- Core Framework ---
+fastapi
+uvicorn[standard]
+gunicorn
+
+# --- Database & ORM ---
+sqlmodel
+alembic
+psycopg2-binary
+
+# --- Authentication & Security ---
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+python-multipart
+
+# --- Validation & Settings ---
+pydantic-settings
+email-validator
+openpyxl
+
+# --- Testing ---
+pytest
+httpx

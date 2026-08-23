@@ -1,0 +1,279 @@
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import authApi from '../../api/authApi';
+import { extractErrorMessage } from '../../utils/errorHelpers';
+import { User, Mail, Lock, Phone, Building, Hash, ArrowRight, AlertCircle, CheckCircle2, Eye, EyeOff } from 'lucide-react';
+import { HOSTEL_OPTIONS } from '../../utils/hostels';
+import { validatePassword, validateEmail, validateHostel } from '../../utils/validation';
+
+export const Register = () => {
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Student Form State
+  const [studentForm, setStudentForm] = useState({
+    name: '',
+    registration_number: '',
+    phone: '',
+    hostel: HOSTEL_OPTIONS[0],
+    email: '',
+    password: '',
+  });
+
+  const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const navigate = useNavigate();
+
+  const handleStudentChange = (e) => {
+    setStudentForm({
+      ...studentForm,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleSubmitStudent = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    // Perform strong validations
+    const emailCheck = validateEmail(studentForm.email);
+    if (!emailCheck.isValid) {
+      setError(emailCheck.errorMsg);
+      return;
+    }
+
+    const passwordCheck = validatePassword(studentForm.password);
+    if (!passwordCheck.isValid) {
+      setError(passwordCheck.errorMsg);
+      return;
+    }
+
+    const hostelCheck = validateHostel(studentForm.hostel);
+    if (!hostelCheck.isValid) {
+      setError(hostelCheck.errorMsg);
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await authApi.registerStudent(studentForm);
+      setSuccessMsg('Student registration successful! Redirecting to login...');
+      setTimeout(() => {
+        navigate('/login');
+      }, 1500);
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError(extractErrorMessage(err, 'Registration failed. Please check inputs.'));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="container page-section" style={{
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      minHeight: '80vh',
+    }}>
+      <div className="card animate-fade-in" style={{
+        width: '100%',
+        maxWidth: '520px',
+        backgroundColor: 'var(--color-white)',
+        padding: '2rem 1.5rem',
+        borderRadius: '24px',
+        boxShadow: 'var(--shadow-lg)',
+      }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <img
+            src="/logo.webp"
+            alt="Gita-Bhojanalay Logo"
+            width="56"
+            height="56"
+            style={{
+              width: '56px',
+              height: '56px',
+              borderRadius: '16px',
+              objectFit: 'cover',
+              border: '2px solid var(--color-green)',
+              boxShadow: '0 4px 12px rgba(46, 155, 98, 0.2)',
+              marginBottom: '0.75rem',
+            }}
+          />
+          <br />
+          <span className="badge badge-mint" style={{ marginBottom: '0.5rem' }}>Gita-Bhojanalay Account Registration</span>
+          <h2 style={{ color: 'var(--color-navy)', fontSize: '1.8rem', marginBottom: '0.4rem' }}>
+            Create New Account
+          </h2>
+          <p style={{ color: 'var(--color-charcoal-muted)', fontSize: '0.9rem' }}>
+            Register as a student to submit weekly food choices
+          </p>
+        </div>
+
+        {/* Notifications */}
+        {error && (
+          <div className="alert alert-danger">
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {successMsg && (
+          <div className="alert alert-success">
+            <CheckCircle2 size={18} />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        {/* Student Registration Form */}
+        <form onSubmit={handleSubmitStudent} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label htmlFor="reg-student-name" className="form-label">Full Name</label>
+            <div style={{ position: 'relative' }}>
+              <User size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-charcoal-muted)' }} />
+              <input
+                id="reg-student-name"
+                type="text"
+                name="name"
+                className="form-input"
+                style={{ paddingLeft: '2.5rem' }}
+                placeholder="e.g. Rahul Sharma"
+                value={studentForm.name}
+                onChange={handleStudentChange}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="grid-2 form-grid-2" style={{ gap: '1rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="reg-student-reg" className="form-label">Registration Number</label>
+              <div style={{ position: 'relative' }}>
+                <Hash size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-charcoal-muted)' }} />
+                <input
+                  id="reg-student-reg"
+                  type="text"
+                  name="registration_number"
+                  className="form-input"
+                  style={{ paddingLeft: '2.5rem' }}
+                  placeholder="e.g. 21CS001"
+                  value={studentForm.registration_number}
+                  onChange={handleStudentChange}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="reg-student-phone" className="form-label">Phone Number</label>
+              <div style={{ position: 'relative' }}>
+                <Phone size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-charcoal-muted)' }} />
+                <input
+                  id="reg-student-phone"
+                  type="tel"
+                  name="phone"
+                  className="form-input"
+                  style={{ paddingLeft: '2.5rem' }}
+                  placeholder="e.g. 9876543210"
+                  value={studentForm.phone}
+                  onChange={handleStudentChange}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid-2 form-grid-2" style={{ gap: '1rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="reg-student-hostel" className="form-label">Hostel Assignment</label>
+              <div style={{ position: 'relative' }}>
+                <Building size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-charcoal-muted)' }} />
+                <select
+                  id="reg-student-hostel"
+                  name="hostel"
+                  className="form-input"
+                  style={{ paddingLeft: '2.5rem', appearance: 'none' }}
+                  value={studentForm.hostel}
+                  onChange={handleStudentChange}
+                  required
+                >
+                  {HOSTEL_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label htmlFor="reg-student-email" className="form-label">Student Registered Email</label>
+              <div style={{ position: 'relative' }}>
+                <Mail size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-charcoal-muted)' }} />
+                <input
+                  id="reg-student-email"
+                  type="email"
+                  name="email"
+                  className="form-input"
+                  style={{ paddingLeft: '2.5rem' }}
+                  placeholder="e.g. student@hostel.edu"
+                  value={studentForm.email}
+                  onChange={handleStudentChange}
+                  required
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: '0.5rem' }}>
+            <label htmlFor="reg-student-password" className="form-label">Create Password</label>
+            <div style={{ position: 'relative' }}>
+              <Lock size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-charcoal-muted)' }} />
+              <input
+                id="reg-student-password"
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                className="form-input"
+                style={{ paddingLeft: '2.5rem', paddingRight: '2.5rem' }}
+                placeholder="••••••••"
+                value={studentForm.password}
+                onChange={handleStudentChange}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-charcoal-muted)', padding: 0, display: 'flex', alignItems: 'center' }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="btn btn-primary"
+            style={{ width: '100%', padding: '0.85rem', marginTop: '0.5rem' }}
+          >
+            {submitting ? 'Registering Account...' : 'Complete Student Registration'}
+            <ArrowRight size={18} />
+          </button>
+        </form>
+
+        <div style={{ textAlign: 'center', marginTop: '1.5rem', fontSize: '0.9rem', color: 'var(--color-charcoal-muted)' }}>
+          Already have an account?{' '}
+          <Link to="/login" style={{ color: 'var(--color-green)', fontWeight: 700 }}>
+            Log In Here
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Register;
