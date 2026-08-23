@@ -49,12 +49,19 @@ export const Login = () => {
   const { loginStudent, loginAdmin } = useAuth();
   const navigate = useNavigate();
 
-  // Redirect to key gate if someone tries to access admin login directly
+  // Redirect to key gate if someone tries to access admin login directly, or sync active tab
   useEffect(() => {
-    if (searchParams.get('role') === 'admin' && !isAdminUnlocked()) {
-      navigate('/enter-key', { replace: true });
+    const roleParam = searchParams.get('role');
+    if (roleParam === 'admin') {
+      if (!isAdminUnlocked()) {
+        navigate('/enter-key', { replace: true });
+      } else {
+        setActiveTab('admin');
+      }
+    } else if (roleParam === 'student') {
+      setActiveTab('student');
     }
-  }, []);
+  }, [searchParams, navigate]);
 
   // Student lockout timer effect
   useEffect(() => {

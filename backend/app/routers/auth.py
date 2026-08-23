@@ -171,8 +171,8 @@ def admin_login(
             key="access_token",
             value=token,
             httponly=True,
-            samesite="lax",
-            secure=settings.is_cookie_secure,
+            samesite="none",
+            secure=True,
             max_age=86400,
         )
         return LoginResponse(
@@ -199,7 +199,12 @@ def logout(response: Response):
     """
     Clear authentication cookies.
     """
-    response.delete_cookie("access_token")
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        samesite="none",
+        secure=True,
+    )
     return {"message": "Logged out successfully"}
 
 
