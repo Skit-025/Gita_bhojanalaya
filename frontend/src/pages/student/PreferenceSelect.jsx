@@ -19,8 +19,8 @@ export const PreferenceSelect = () => {
 
   const weekDays = getUpcomingWeekDays();
 
-  // Check if student has finalized their weekly submission
-  const isFinalized = existingPreferences.length > 0 && existingPreferences.every((p) => p.is_submitted);
+  // Check if student has finalized their weekly submission (only locked when window is closed)
+  const isFinalized = !windowOpen && existingPreferences.length > 0 && existingPreferences.every((p) => p.is_submitted);
   const isDraftSaved = existingPreferences.length > 0 && existingPreferences.some((p) => !p.is_submitted);
 
   useEffect(() => {
