@@ -21,24 +21,35 @@ export const isSelectionWindowOpen = (dateObj = new Date()) => {
   return day === 0 || day === 6;
 };
 
-// Get upcoming Monday (start of upcoming week)
+// Get target Monday (start of target week)
+// Saturday (6) or Sunday (0): Returns upcoming Monday
+// Monday (1) to Friday (5): Returns current week Monday
 export const getUpcomingWeekStart = (dateObj = new Date()) => {
   const current = new Date(dateObj);
   const day = current.getDay(); // 0 (Sun) to 6 (Sat)
   
-  let daysUntilMonday = 1 - day;
-  if (day === 0) daysUntilMonday = 1; // From Sun to Mon is +1
-  else if (day === 6) daysUntilMonday = 2; // From Sat to Mon is +2
-  else if (daysUntilMonday <= 0) daysUntilMonday += 7;
+  if (day === 0) { // Sunday -> tomorrow Monday (+1)
+    const monday = new Date(current);
+    monday.setDate(current.getDate() + 1);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  }
+  if (day === 6) { // Saturday -> in 2 days Monday (+2)
+    const monday = new Date(current);
+    monday.setDate(current.getDate() + 2);
+    monday.setHours(0, 0, 0, 0);
+    return monday;
+  }
 
-  const upcomingMonday = new Date(current);
-  upcomingMonday.setDate(current.getDate() + daysUntilMonday);
-  upcomingMonday.setHours(0, 0, 0, 0);
-
-  return upcomingMonday;
+  // Monday (1) to Friday (5): Current week Monday
+  const diffToMonday = 1 - day;
+  const monday = new Date(current);
+  monday.setDate(current.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+  return monday;
 };
 
-// Generate array of 7 dates for upcoming Monday -> Sunday
+// Generate array of 7 dates for target Monday -> Sunday
 export const getUpcomingWeekDays = (dateObj = new Date()) => {
   const monday = getUpcomingWeekStart(dateObj);
   const days = [];
