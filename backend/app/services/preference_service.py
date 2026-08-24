@@ -47,6 +47,8 @@ from sqlmodel import Session, select
 from app.models.preference import Preference
 from app.utils.date_utils import (
     is_selection_open,
+    get_current_week_start,
+    get_current_week_end,
     get_upcoming_week_start,
     get_upcoming_week_end,
 )
@@ -273,8 +275,18 @@ def validate_weekly_submission(
             "A complete weekly submission must contain exactly 14 preferences"
         )
 
-    week_start = get_upcoming_week_start(current_date)
-    week_end = get_upcoming_week_end(current_date)
+    # Determine week from the first meal date
+    first_meal_date = preferences[0].meal_date
+    week_start = first_meal_date - timedelta(days=first_meal_date.weekday())
+    week_end = week_start + timedelta(days=6)
+
+    curr_week_start = get_current_week_start(current_date)
+    up_week_start = get_upcoming_week_start(current_date)
+
+    if week_start not in (curr_week_start, up_week_start):
+        raise ValueError(
+            f"Meal dates must belong either to current week ({curr_week_start}) or upcoming week ({up_week_start})"
+        )
 
     seen_slots: set[tuple[date, str]] = set()
 
@@ -293,7 +305,7 @@ def validate_weekly_submission(
         # Validate date.
         if not week_start <= meal_date <= week_end:
             raise ValueError(
-                f"Meal date {meal_date} must belong to the upcoming week"
+                f"Meal date {meal_date} must belong to the selected week ({week_start} to {week_end})"
             )
 
         # Detect duplicate date + meal combinations.
@@ -322,9 +334,6 @@ def validate_weekly_submission(
                 f"Missing dinner preference for {current_day}"
             )
 
-        # IMPORTANT:
-        # Use timedelta instead of manually modifying the day number.
-        # This correctly handles month/year boundaries.
         current_day += timedelta(days=1)
 
     return week_start

@@ -82,46 +82,71 @@ def is_selection_open(current_date: date | None = None) -> bool:
     return current_date.weekday() in (5, 6)
 
 
-def get_target_week_start(current_date: date | None = None) -> date:
+def get_current_week_start(current_date: date | None = None) -> date:
     """
-    Get the relevant Monday for preferences:
-    - On Saturday/Sunday: Returns the upcoming Monday.
-    - On Monday-Friday: Returns the active current week's Monday.
+    Get the Monday of the current calendar week.
     """
     if current_date is None:
         current_date = get_current_local_date()
 
-    if current_date.weekday() in (5, 6):
-        days_until_monday = 7 - current_date.weekday()
-        return current_date + timedelta(days=days_until_monday)
-    
-    # Monday to Friday: Active current week Monday
     return current_date - timedelta(days=current_date.weekday())
 
 
-def get_target_week_end(current_date: date | None = None) -> date:
+def get_current_week_end(current_date: date | None = None) -> date:
+    """
+    Get the Sunday of the current calendar week.
+    """
+    if current_date is None:
+        current_date = get_current_local_date()
+
+    week_start = get_current_week_start(current_date)
+    return week_start + timedelta(days=6)
+
+
+def get_upcoming_week_start(current_date: date | None = None) -> date:
+    """
+    Get the Monday of the upcoming calendar week (current Monday + 7 days).
+    """
+    if current_date is None:
+        current_date = get_current_local_date()
+
+    return get_current_week_start(current_date) + timedelta(days=7)
+
+
+def get_upcoming_week_end(current_date: date | None = None) -> date:
+    """
+    Get the Sunday of the upcoming calendar week (upcoming Monday + 6 days).
+    """
+    if current_date is None:
+        current_date = get_current_local_date()
+
+    week_start = get_upcoming_week_start(current_date)
+    return week_start + timedelta(days=6)
+
+
+def get_target_week_start(current_date: date | None = None, week_type: str = "current") -> date:
+    """
+    Get the relevant Monday for preferences:
+    - 'current': Current week's Monday.
+    - 'upcoming': Upcoming week's Monday.
+    """
+    if current_date is None:
+        current_date = get_current_local_date()
+
+    if str(week_type).lower() == "upcoming":
+        return get_upcoming_week_start(current_date)
+    return get_current_week_start(current_date)
+
+
+def get_target_week_end(current_date: date | None = None, week_type: str = "current") -> date:
     """
     Calculate the Sunday of the target week.
     """
     if current_date is None:
         current_date = get_current_local_date()
 
-    week_start = get_target_week_start(current_date)
+    week_start = get_target_week_start(current_date, week_type=week_type)
     return week_start + timedelta(days=6)
-
-
-def get_upcoming_week_start(current_date: date | None = None) -> date:
-    """
-    Alias to get_target_week_start for consistent week resolution.
-    """
-    return get_target_week_start(current_date)
-
-
-def get_upcoming_week_end(current_date: date | None = None) -> date:
-    """
-    Alias to get_target_week_end for consistent week resolution.
-    """
-    return get_target_week_end(current_date)
 
 
 def is_date_in_upcoming_week(
@@ -129,12 +154,12 @@ def is_date_in_upcoming_week(
     current_date: date | None = None
 ) -> bool:
     """
-    Determine whether a meal date belongs to the target preference week.
+    Determine whether a meal date belongs to either the current or upcoming week.
     """
     if current_date is None:
         current_date = get_current_local_date()
 
-    week_start = get_target_week_start(current_date)
-    week_end = get_target_week_end(current_date)
+    curr_start = get_current_week_start(current_date)
+    up_end = get_upcoming_week_end(current_date)
 
-    return week_start <= meal_date <= week_end
+    return curr_start <= meal_date <= up_end

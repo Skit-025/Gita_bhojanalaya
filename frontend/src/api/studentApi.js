@@ -6,8 +6,14 @@ export const studentApi = {
     return response.data;
   },
 
-  getWeeklyPreferences: async () => {
-    const response = await axiosInstance.get('/preference/weekly');
+  getWeeklyPreferences: async (weekType = 'current', weekStartDate = null) => {
+    const params = {};
+    if (weekStartDate) {
+      params.week_start_date = weekStartDate;
+    } else if (weekType) {
+      params.week_type = weekType;
+    }
+    const response = await axiosInstance.get('/preference/weekly', { params });
     return response.data;
   },
 

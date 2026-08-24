@@ -3,7 +3,7 @@ import studentApi from '../../api/studentApi';
 import menuApi from '../../api/menuApi';
 import PreferenceCard from '../../components/student/PreferenceCard';
 import Loader from '../../components/common/Loader';
-import { isSelectionWindowOpen, getUpcomingWeekDays } from '../../utils/dateHelpers';
+import { isSelectionWindowOpen, getCurrentWeekDays, getUpcomingWeekDays } from '../../utils/dateHelpers';
 import { Calendar, CheckCircle2, AlertCircle, ShieldAlert, Send, Save, Lock, FileCheck } from 'lucide-react';
 
 export const PreferenceSelect = () => {
@@ -12,49 +12,55 @@ export const PreferenceSelect = () => {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
+  const [selectedWeekType, setSelectedWeekType] = useState('current'); // 'current' | 'upcoming'
   const [menuItems, setMenuItems] = useState([]);
   const [existingPreferences, setExistingPreferences] = useState([]);
   const [selections, setSelections] = useState({}); // key: `${dateStr}_${mealType}` -> 'veg' | 'non_veg'
   const [windowOpen, setWindowOpen] = useState(false);
 
-  const weekDays = getUpcomingWeekDays();
+  const currentWeekDays = getCurrentWeekDays();
+  const upcomingWeekDays = getUpcomingWeekDays();
+  const weekDays = selectedWeekType === 'current' ? currentWeekDays : upcomingWeekDays;
 
   // Check if student has finalized their weekly submission (only locked when window is closed)
   const isFinalized = !windowOpen && existingPreferences.length > 0 && existingPreferences.every((p) => p.is_submitted);
   const isDraftSaved = existingPreferences.length > 0 && existingPreferences.some((p) => !p.is_submitted);
 
+  const loadPreferencesForWeek = async (weekType) => {
+    try {
+      setLoading(true);
+      setError('');
+      setSuccessMsg('');
+      const targetDays = weekType === 'current' ? getCurrentWeekDays() : getUpcomingWeekDays();
+
+      const [menuData, prefData, windowStatus] = await Promise.all([
+        menuApi.getWeeklyMenu(),
+        studentApi.getWeeklyPreferences(weekType, targetDays[0].dateStr),
+        studentApi.getTodayWindowStatus().catch(() => ({ is_open: isSelectionWindowOpen() })),
+      ]);
+
+      setMenuItems(menuData || []);
+      setExistingPreferences(prefData || []);
+      setWindowOpen(windowStatus?.is_open ?? isSelectionWindowOpen());
+
+      // Pre-fill selections from stored preferences
+      const initialSelections = {};
+      (prefData || []).forEach((pref) => {
+        const key = `${pref.meal_date}_${pref.meal_type.toLowerCase()}`;
+        initialSelections[key] = pref.preference.toLowerCase();
+      });
+      setSelections(initialSelections);
+    } catch (err) {
+      console.error('Failed to load preferences data:', err);
+      setError('Failed to load preferences data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        setLoading(true);
-        const [menuData, prefData, windowStatus] = await Promise.all([
-          menuApi.getWeeklyMenu(),
-          studentApi.getWeeklyPreferences(),
-          studentApi.getTodayWindowStatus().catch(() => ({ is_open: isSelectionWindowOpen() })),
-        ]);
-
-        setMenuItems(menuData);
-        setExistingPreferences(prefData || []);
-        setWindowOpen(windowStatus?.is_open ?? isSelectionWindowOpen());
-
-        // Pre-fill selections from stored preferences
-        const initialSelections = {};
-        (prefData || []).forEach((pref) => {
-          const key = `${pref.meal_date}_${pref.meal_type.toLowerCase()}`;
-          initialSelections[key] = pref.preference.toLowerCase();
-        });
-        setSelections(initialSelections);
-      } catch (err) {
-        console.error('Failed to load preferences data:', err);
-        setError('Failed to load preferences data. Please try again.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadData();
-  }, []);
-
+    loadPreferencesForWeek(selectedWeekType);
+  }, [selectedWeekType]);
 
   const handleSelectChoice = (dateStr, mealType, choice) => {
     if (isFinalized || !windowOpen) return;
@@ -111,10 +117,11 @@ export const PreferenceSelect = () => {
       const saved = await studentApi.submitWeeklyPreferences(preferencesList, isFinal);
       setExistingPreferences(saved);
 
+      const weekLabel = selectedWeekType === 'current' ? 'Current Week' : 'Upcoming Week';
       if (isFinal) {
-        setSuccessMsg('Your 14 weekly meal preferences have been FINALIZED and submitted! Choices are now locked.');
+        setSuccessMsg(`Your 14 ${weekLabel} meal preferences have been FINALIZED and submitted! Choices are now saved.`);
       } else {
-        setSuccessMsg('Draft preferences saved successfully! You can modify choices anytime until the window closes or click Final Submit.');
+        setSuccessMsg(`Draft preferences for ${weekLabel} saved successfully! You can modify choices anytime until the window closes.`);
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
@@ -127,12 +134,65 @@ export const PreferenceSelect = () => {
     }
   };
 
-  if (loading) {
-    return <Loader message="Loading your upcoming week preferences..." />;
-  }
-
   return (
     <div className="container page-section">
+      {/* Week Switcher Tab Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: '1.5rem',
+      }}>
+        <div style={{
+          display: 'inline-flex',
+          backgroundColor: '#f1f5f9',
+          padding: '0.4rem',
+          borderRadius: '16px',
+          border: '1px solid #cbd5e1',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+          gap: '0.4rem',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+        }}>
+          <button
+            type="button"
+            onClick={() => setSelectedWeekType('current')}
+            style={{
+              padding: '0.65rem 1.4rem',
+              borderRadius: '12px',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              backgroundColor: selectedWeekType === 'current' ? '#0f172a' : 'transparent',
+              color: selectedWeekType === 'current' ? '#ffffff' : '#475569',
+              boxShadow: selectedWeekType === 'current' ? '0 4px 12px rgba(15,23,42,0.25)' : 'none',
+            }}
+          >
+            📅 Current Week ({currentWeekDays[0].formattedDate} – {currentWeekDays[6].formattedDate})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedWeekType('upcoming')}
+            style={{
+              padding: '0.65rem 1.4rem',
+              borderRadius: '12px',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: '0.95rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              backgroundColor: selectedWeekType === 'upcoming' ? '#0f172a' : 'transparent',
+              color: selectedWeekType === 'upcoming' ? '#ffffff' : '#475569',
+              boxShadow: selectedWeekType === 'upcoming' ? '0 4px 12px rgba(15,23,42,0.25)' : 'none',
+            }}
+          >
+            🚀 Upcoming Week ({upcomingWeekDays[0].formattedDate} – {upcomingWeekDays[6].formattedDate})
+          </button>
+        </div>
+      </div>
+
       {/* Banner */}
       <div className="page-header-banner">
         <div>
@@ -141,7 +201,7 @@ export const PreferenceSelect = () => {
               <Calendar size={14} /> {isFinalized ? 'Finalized & Locked' : (windowOpen ? 'Selection Window Open' : 'Window Closed')}
             </span>
             <span className="badge badge-navy">
-              Upcoming Week ({weekDays[0].formattedDate} – {weekDays[6].formattedDate})
+              {selectedWeekType === 'current' ? 'Current Week' : 'Upcoming Week'} ({weekDays[0].formattedDate} – {weekDays[6].formattedDate})
             </span>
             {isDraftSaved && !isFinalized && (
               <span className="badge badge-mint" style={{ backgroundColor: '#fff8e1', color: '#b45309', borderColor: '#fde68a' }}>
@@ -151,7 +211,7 @@ export const PreferenceSelect = () => {
           </div>
 
           <h2 style={{ color: 'var(--color-cream)', marginBottom: '0.25rem' }}>
-            Select Upcoming Week Preferences
+            {selectedWeekType === 'current' ? 'Select Current Week Preferences' : 'Select Upcoming Week Preferences'}
           </h2>
           <p style={{ color: 'var(--color-mint)', fontSize: '0.95rem', margin: 0 }}>
             {isFinalized
@@ -206,73 +266,77 @@ export const PreferenceSelect = () => {
         <div className="alert alert-info" style={{ marginBottom: '1.5rem' }}>
           <ShieldAlert size={20} />
           <span>
-            <strong>Preference Selection Closed:</strong> Student preference submissions are permitted only on Saturdays and Sundays. Draft selections have been automatically finalized for the upcoming week.
+            <strong>Preference Selection Closed:</strong> Student preference submissions are permitted only on Saturdays and Sundays (or when explicitly opened by an Administrator).
           </span>
         </div>
       )}
 
-      {/* 14 Meal Cards Grid */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        {weekDays.map((day) => {
-          const dayNameLower = day.dayName.toLowerCase();
-          const dayMenuItems = menuItems.filter((item) => item.day_of_week.toLowerCase() === dayNameLower);
-          const lunchItem = dayMenuItems.find((item) => item.meal_type.toLowerCase() === 'lunch');
-          const dinnerItem = dayMenuItems.find((item) => item.meal_type.toLowerCase() === 'dinner');
+      {loading ? (
+        <Loader message={`Loading preferences for ${selectedWeekType === 'current' ? 'Current Week' : 'Upcoming Week'}...`} />
+      ) : (
+        /* 14 Meal Cards Grid */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          {weekDays.map((day) => {
+            const dayNameLower = day.dayName.toLowerCase();
+            const dayMenuItems = menuItems.filter((item) => item.day_of_week.toLowerCase() === dayNameLower);
+            const lunchItem = dayMenuItems.find((item) => item.meal_type.toLowerCase() === 'lunch');
+            const dinnerItem = dayMenuItems.find((item) => item.meal_type.toLowerCase() === 'dinner');
 
-          const lunchKey = `${day.dateStr}_lunch`;
-          const dinnerKey = `${day.dateStr}_dinner`;
+            const lunchKey = `${day.dateStr}_lunch`;
+            const dinnerKey = `${day.dateStr}_dinner`;
 
-          // Check if admin overridden
-          const lunchExisting = existingPreferences.find((p) => p.meal_date === day.dateStr && p.meal_type === 'lunch');
-          const dinnerExisting = existingPreferences.find((p) => p.meal_date === day.dateStr && p.meal_type === 'dinner');
+            // Check if admin overridden
+            const lunchExisting = existingPreferences.find((p) => p.meal_date === day.dateStr && p.meal_type === 'lunch');
+            const dinnerExisting = existingPreferences.find((p) => p.meal_date === day.dateStr && p.meal_type === 'dinner');
 
-          return (
-            <div key={day.dateStr} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3 style={{
-                color: 'var(--color-navy)',
-                fontSize: '1.25rem',
-                borderBottom: '2px solid var(--border-strong)',
-                paddingBottom: '0.4rem',
-              }}>
-                {day.dayName} <span style={{ color: 'var(--color-charcoal-muted)', fontSize: '0.9rem', fontWeight: 500 }}>({day.formattedDate})</span>
-              </h3>
+            return (
+              <div key={day.dateStr} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <h3 style={{
+                  color: 'var(--color-navy)',
+                  fontSize: '1.25rem',
+                  borderBottom: '2px solid var(--border-strong)',
+                  paddingBottom: '0.4rem',
+                }}>
+                  {day.dayName} <span style={{ color: 'var(--color-charcoal-muted)', fontSize: '0.9rem', fontWeight: 500 }}>({day.formattedDate})</span>
+                </h3>
 
-              <div className="grid-2">
-                <PreferenceCard
-                  dayName={day.dayName}
-                  formattedDate={day.formattedDate}
-                  mealType="lunch"
-                  vegMenu={lunchItem?.veg_menu}
-                  nonVegMenu={lunchItem?.non_veg_menu}
-                  selectedChoice={selections[lunchKey]}
-                  onSelect={(choice) => handleSelectChoice(day.dateStr, 'lunch', choice)}
-                  isAdminOverridden={!!lunchExisting?.updated_by}
-                  disabled={isFinalized || !windowOpen}
-                />
+                <div className="grid-2">
+                  <PreferenceCard
+                    dayName={day.dayName}
+                    formattedDate={day.formattedDate}
+                    mealType="lunch"
+                    vegMenu={lunchItem?.veg_menu}
+                    nonVegMenu={lunchItem?.non_veg_menu}
+                    selectedChoice={selections[lunchKey]}
+                    onSelect={(choice) => handleSelectChoice(day.dateStr, 'lunch', choice)}
+                    isAdminOverridden={!!lunchExisting?.updated_by}
+                    disabled={isFinalized || !windowOpen}
+                  />
 
-                <PreferenceCard
-                  dayName={day.dayName}
-                  formattedDate={day.formattedDate}
-                  mealType="dinner"
-                  vegMenu={dinnerItem?.veg_menu}
-                  nonVegMenu={dinnerItem?.non_veg_menu}
-                  selectedChoice={selections[dinnerKey]}
-                  onSelect={(choice) => handleSelectChoice(day.dateStr, 'dinner', choice)}
-                  isAdminOverridden={!!dinnerExisting?.updated_by}
-                  disabled={isFinalized || !windowOpen}
-                />
+                  <PreferenceCard
+                    dayName={day.dayName}
+                    formattedDate={day.formattedDate}
+                    mealType="dinner"
+                    vegMenu={dinnerItem?.veg_menu}
+                    nonVegMenu={dinnerItem?.non_veg_menu}
+                    selectedChoice={selections[dinnerKey]}
+                    onSelect={(choice) => handleSelectChoice(day.dateStr, 'dinner', choice)}
+                    isAdminOverridden={!!dinnerExisting?.updated_by}
+                    disabled={isFinalized || !windowOpen}
+                  />
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Submit Action Bar */}
-      {!isFinalized && windowOpen && (
+      {!loading && !isFinalized && windowOpen && (
         <div className="sticky-submit-bar">
           <div>
             <div style={{ fontWeight: 800, color: 'var(--color-navy)', fontSize: '1.1rem' }}>
-              Save or Finalize Week Preferences?
+              Save or Finalize {selectedWeekType === 'current' ? 'Current Week' : 'Upcoming Week'} Preferences?
             </div>
             <div style={{ fontSize: '0.88rem', color: 'var(--color-charcoal-muted)' }}>
               {calculateSelectedCount() === 14 ? '✅ All 14 meal slots selected' : `⚠️ ${14 - calculateSelectedCount()} meal slots remaining`}

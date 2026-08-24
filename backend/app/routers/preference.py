@@ -46,9 +46,9 @@
 #       Provides upcoming-week calculations.
 # ===============================================================================
 
-from datetime import date
+from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from app.core.permissions import require_admin, require_student
@@ -75,6 +75,8 @@ from app.services.student_service import (
 from app.utils.date_utils import (
     get_target_week_start,
     get_current_local_date,
+    get_current_week_start,
+    get_upcoming_week_start,
 )
 
 
@@ -135,21 +137,26 @@ def submit_weekly_preference(
     response_model=list[PreferenceResponse],
 )
 def get_my_weekly_preferences(
+    week_type: str = Query("current", description="Week to retrieve: 'current' or 'upcoming'"),
+    week_start_date: date | None = Query(None, description="Explicit Monday date of the week"),
     current_student: Student = Depends(require_student),
     db: Session = Depends(get_db),
 ):
     """
-    Retrieve the authenticated student's preferences for the active/upcoming week.
+    Retrieve the authenticated student's preferences for the current or upcoming week.
     """
-
-    week_start = get_target_week_start(
-        get_current_local_date()
-    )
+    today = get_current_local_date()
+    if week_start_date is not None:
+        target_week = week_start_date - timedelta(days=week_start_date.weekday())
+    elif str(week_type).lower() == "upcoming":
+        target_week = get_upcoming_week_start(today)
+    else:
+        target_week = get_current_week_start(today)
 
     return get_student_week_preferences(
         db=db,
         student_id=current_student.student_id,
-        week_start_date=week_start,
+        week_start_date=target_week,
     )
 
 
