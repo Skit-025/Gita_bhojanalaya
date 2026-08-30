@@ -48,7 +48,6 @@ from app.models.preference import Preference
 from app.utils.date_utils import (
     is_selection_open,
     get_current_week_start,
-    get_current_week_end,
     get_upcoming_week_start,
     get_upcoming_week_end,
 )
@@ -244,7 +243,8 @@ def validate_weekly_submission(
     current_date: date,
 ) -> date:
     """
-    Validate a complete weekly preference submission.
+    Validate a complete weekly preference submission for either the current
+    calendar week or the upcoming calendar week.
 
     A valid submission must contain exactly:
 
@@ -253,17 +253,18 @@ def validate_weekly_submission(
     The following conditions are enforced:
 
     1. Exactly 14 preference items must be provided.
-    2. Every meal date must belong to the upcoming week.
-    3. Every meal type must be lunch or dinner.
-    4. Every preference must be veg or non_veg.
-    5. No date/meal combination may appear more than once.
-    6. Every day from Monday through Sunday must contain:
+    2. Every meal date must belong to either the current week or the upcoming week.
+    3. All 14 meal dates must belong to the same 7-day Monday-Sunday week.
+    4. Every meal type must be lunch or dinner.
+    5. Every preference must be veg or non_veg.
+    6. No date/meal combination may appear more than once.
+    7. Every day from Monday through Sunday must contain:
            - one lunch preference
            - one dinner preference
 
     Returns:
         date:
-            Monday of the upcoming week.
+            Monday of the target week.
 
     Raises:
         ValueError:
@@ -275,17 +276,18 @@ def validate_weekly_submission(
             "A complete weekly submission must contain exactly 14 preferences"
         )
 
-    # Determine week from the first meal date
+    # Determine the target week start based on the first item
     first_meal_date = preferences[0].meal_date
     week_start = first_meal_date - timedelta(days=first_meal_date.weekday())
     week_end = week_start + timedelta(days=6)
 
+    # Allowed weeks are current calendar week and upcoming calendar week
     curr_week_start = get_current_week_start(current_date)
     up_week_start = get_upcoming_week_start(current_date)
 
     if week_start not in (curr_week_start, up_week_start):
         raise ValueError(
-            f"Meal dates must belong either to current week ({curr_week_start}) or upcoming week ({up_week_start})"
+            "Meal dates must belong to either the current week or the upcoming week"
         )
 
     seen_slots: set[tuple[date, str]] = set()
@@ -302,10 +304,10 @@ def validate_weekly_submission(
         # Validate food preference.
         validate_preference(preference)
 
-        # Validate date.
+        # Validate date belongs to the designated 7-day week.
         if not week_start <= meal_date <= week_end:
             raise ValueError(
-                f"Meal date {meal_date} must belong to the selected week ({week_start} to {week_end})"
+                f"Meal date {meal_date} does not belong to the selected week ({week_start} to {week_end})"
             )
 
         # Detect duplicate date + meal combinations.
@@ -334,6 +336,9 @@ def validate_weekly_submission(
                 f"Missing dinner preference for {current_day}"
             )
 
+        # IMPORTANT:
+        # Use timedelta instead of manually modifying the day number.
+        # This correctly handles month/year boundaries.
         current_day += timedelta(days=1)
 
     return week_start
@@ -351,9 +356,9 @@ def submit_weekly_preferences(
     """
     Create or update all 14 preferences for a student's upcoming week.
 
-    Students can submit or save draft preferences when the window is open.
-    - is_final=False: Saves selections as draft.
-    - is_final=True: Finalizes selections.
+    Students can submit or save draft preferences only on Saturday or Sunday.
+    - is_final=False: Saves selections as draft without locking edits.
+    - is_final=True: Finalizes selections and locks student edits permanently.
     """
 
     # Check selection window (respecting admin overrides).
@@ -377,6 +382,20 @@ def submit_weekly_preferences(
             Preference.week_start_date == week_start,
         )
     ).all()
+
+    # If student has ALREADY finalized submission, reject modifications
+    # UNLESS the admin has explicitly re-opened the window — then allow resubmission.
+    if any(p.is_submitted for p in existing_records):
+        override = get_window_override(db, current_date)
+        admin_opened = override is not None and override.is_open
+        if not admin_opened:
+            raise ValueError(
+                "Your weekly preferences have already been finalized and submitted.Edits are locked."
+            )
+        # Admin re-opened the window: reset finalization so the student can edit.
+        for p in existing_records:
+            p.is_submitted = False
+            db.add(p)
 
     existing_map: dict[tuple[date, str], Preference] = {
         (p.meal_date, p.meal_type): p for p in existing_records
@@ -719,35 +738,56 @@ def submit_today_preferences(
         )
     ).all()
 
-    existing_map: dict[str, Preference] = {
-        p.meal_type: p for p in existing_records
-    }
+    if existing_records:
+        # If admin has explicitly re-opened the window, allow the student to update.
+        override = get_window_override(db, current_date)
+        admin_opened = override is not None and override.is_open
+        if not admin_opened:
+            raise ValueError(
+                "Today's meal preference has already been set and cannot be changed by the student. Only an administrator can override today's choice."
+            )
+        # Admin re-opened: update existing records instead of rejecting.
+        existing_map = {p.meal_type.lower(): p for p in existing_records}
+        saved_prefs = []
+        for meal_type, pref_val in [("lunch", lunch_pref), ("dinner", dinner_pref)]:
+            if meal_type in existing_map:
+                existing_map[meal_type].preference = pref_val
+                existing_map[meal_type].updated_by = None
+                existing_map[meal_type].updated_at = None
+                db.add(existing_map[meal_type])
+                saved_prefs.append(existing_map[meal_type])
+            else:
+                new_pref = Preference(
+                    student_id=student_id,
+                    week_start_date=week_start,
+                    meal_date=current_date,
+                    meal_type=meal_type,
+                    preference=pref_val,
+                    updated_by=None,
+                    updated_at=None,
+                )
+                db.add(new_pref)
+                saved_prefs.append(new_pref)
+        db.commit()
+        for p in saved_prefs:
+            db.refresh(p)
+        return saved_prefs
 
     meals_to_update = [("lunch", lunch_pref), ("dinner", dinner_pref)]
     saved_prefs = []
 
     for meal_type, pref_val in meals_to_update:
-        existing_pref = existing_map.get(meal_type)
-        if existing_pref:
-            if existing_pref.updated_by is not None:
-                raise ValueError(
-                    f"Today's {meal_type} preference has already been overridden by an administrator"
-                )
-            existing_pref.preference = pref_val
-            db.add(existing_pref)
-            saved_prefs.append(existing_pref)
-        else:
-            new_pref = Preference(
-                student_id=student_id,
-                week_start_date=week_start,
-                meal_date=current_date,
-                meal_type=meal_type,
-                preference=pref_val,
-                updated_by=None,
-                updated_at=None,
-            )
-            db.add(new_pref)
-            saved_prefs.append(new_pref)
+        new_pref = Preference(
+            student_id=student_id,
+            week_start_date=week_start,
+            meal_date=current_date,
+            meal_type=meal_type,
+            preference=pref_val,
+            updated_by=None,
+            updated_at=None,
+        )
+        db.add(new_pref)
+        saved_prefs.append(new_pref)
 
     db.commit()
     for p in saved_prefs:

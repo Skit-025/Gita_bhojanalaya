@@ -21,18 +21,18 @@ export const isSelectionWindowOpen = (dateObj = new Date()) => {
   return day === 0 || day === 6;
 };
 
-// Get Monday of current calendar week
+// Get current Monday (start of current week)
 export const getCurrentWeekStart = (dateObj = new Date()) => {
   const current = new Date(dateObj);
-  const day = current.getDay(); // 0 (Sun) to 6 (Sat)
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(current);
-  monday.setDate(current.getDate() + diffToMonday);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
+  const day = current.getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
+  const diff = day === 0 ? -6 : 1 - day;
+  const currentMonday = new Date(current);
+  currentMonday.setDate(current.getDate() + diff);
+  currentMonday.setHours(0, 0, 0, 0);
+  return currentMonday;
 };
 
-// Get Monday of upcoming calendar week (current Monday + 7 days)
+// Get upcoming Monday (start of upcoming week)
 export const getUpcomingWeekStart = (dateObj = new Date()) => {
   const currentMonday = getCurrentWeekStart(dateObj);
   const nextMonday = new Date(currentMonday);
@@ -41,14 +41,15 @@ export const getUpcomingWeekStart = (dateObj = new Date()) => {
   return nextMonday;
 };
 
-// Generate 7 days for a given Monday
-export const getWeekDaysForMonday = (mondayDate) => {
+// Generate array of 7 dates for a Monday -> Sunday week
+export const getWeekDays = (startMonday) => {
+  const monday = new Date(startMonday);
   const days = [];
   const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
   for (let i = 0; i < 7; i++) {
-    const d = new Date(mondayDate);
-    d.setDate(mondayDate.getDate() + i);
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
     const dateStr = toLocalDateStr(d);
 
     days.push({
@@ -61,14 +62,14 @@ export const getWeekDaysForMonday = (mondayDate) => {
   return days;
 };
 
-// Generate array of 7 dates for current week Monday -> Sunday
+// Generate array of 7 dates for current Monday -> Sunday
 export const getCurrentWeekDays = (dateObj = new Date()) => {
-  return getWeekDaysForMonday(getCurrentWeekStart(dateObj));
+  return getWeekDays(getCurrentWeekStart(dateObj));
 };
 
-// Generate array of 7 dates for upcoming week Monday -> Sunday
+// Generate array of 7 dates for upcoming Monday -> Sunday
 export const getUpcomingWeekDays = (dateObj = new Date()) => {
-  return getWeekDaysForMonday(getUpcomingWeekStart(dateObj));
+  return getWeekDays(getUpcomingWeekStart(dateObj));
 };
 
 export const formatDatePretty = (dateStr) => {

@@ -46,9 +46,9 @@
 #       Provides upcoming-week calculations.
 # ===============================================================================
 
-from datetime import date, timedelta
+from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.core.permissions import require_admin, require_student
@@ -70,13 +70,12 @@ from app.services.preference_service import (
 )
 from app.services.student_service import (
     get_student_by_id,
+    get_student_by_roll_number,
     get_student_by_registration_number,
 )
 from app.utils.date_utils import (
     get_target_week_start,
     get_current_local_date,
-    get_current_week_start,
-    get_upcoming_week_start,
 )
 
 
@@ -137,26 +136,23 @@ def submit_weekly_preference(
     response_model=list[PreferenceResponse],
 )
 def get_my_weekly_preferences(
-    week_type: str = Query("current", description="Week to retrieve: 'current' or 'upcoming'"),
-    week_start_date: date | None = Query(None, description="Explicit Monday date of the week"),
+    week_start: date | None = None,
     current_student: Student = Depends(require_student),
     db: Session = Depends(get_db),
 ):
     """
-    Retrieve the authenticated student's preferences for the current or upcoming week.
+    Retrieve the authenticated student's preferences for the active/upcoming week or specified week_start.
     """
-    today = get_current_local_date()
-    if week_start_date is not None:
-        target_week = week_start_date - timedelta(days=week_start_date.weekday())
-    elif str(week_type).lower() == "upcoming":
-        target_week = get_upcoming_week_start(today)
-    else:
-        target_week = get_current_week_start(today)
+
+    if week_start is None:
+        week_start = get_target_week_start(
+            get_current_local_date()
+        )
 
     return get_student_week_preferences(
         db=db,
         student_id=current_student.student_id,
-        week_start_date=target_week,
+        week_start_date=week_start,
     )
 
 
@@ -243,7 +239,9 @@ def admin_update_student_preference(
     Create or override one meal preference for a student by registration number or ID.
     """
     s_str = str(student_id).strip()
-    student = get_student_by_registration_number(db=db, registration_number=s_str)
+    student = get_student_by_roll_number(db=db, roll_number=s_str)
+    if student is None:
+        student = get_student_by_registration_number(db=db, registration_number=s_str)
     if student is None and s_str.isdigit():
         try:
             val = int(s_str)

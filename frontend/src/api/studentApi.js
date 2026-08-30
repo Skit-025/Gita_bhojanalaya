@@ -6,13 +6,25 @@ export const studentApi = {
     return response.data;
   },
 
-  getWeeklyPreferences: async (weekType = 'current', weekStartDate = null) => {
-    const params = {};
-    if (weekStartDate) {
-      params.week_start_date = weekStartDate;
-    } else if (weekType) {
-      params.week_type = weekType;
-    }
+  updateProfile: async (data) => {
+    const response = await axiosInstance.patch('/student/profile', data);
+    return response.data;
+  },
+
+  uploadAvatar: async (formData) => {
+    const response = await axiosInstance.post('/student/profile/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+
+  deleteAvatar: async () => {
+    const response = await axiosInstance.delete('/student/profile/avatar');
+    return response.data;
+  },
+
+  getWeeklyPreferences: async (weekStart = null) => {
+    const params = weekStart ? { week_start: weekStart } : {};
     const response = await axiosInstance.get('/preference/weekly', { params });
     return response.data;
   },
@@ -42,4 +54,3 @@ export const studentApi = {
 };
 
 export default studentApi;
-
